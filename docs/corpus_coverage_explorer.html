@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Corpus Coverage Explorer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #fff; color: #111; padding: 1.25rem; }
+h2.title { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+.subtitle { font-size: 13px; color: #666; margin-bottom: 1.5rem; line-height: 1.7; }
+.summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+.metric { background: #f7f7f5; border-radius: 8px; padding: .75rem 1rem; }
+.metric-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.metric-value { font-size: 17px; font-weight: 500; color: #111; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: .75rem; align-items: center; font-size: 12px; color: #888; }
+.legend-label { margin-right: 2px; }
+.src-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; text-decoration: none; font-weight: 500; }
+.s-pm  { background:#E6F1FB; color:#0C447C; }
+.s-ps  { background:#EAF3DE; color:#27500A; }
+.s-pl  { background:#FAEEDA; color:#633806; }
+.s-pe  { background:#FBEAF0; color:#72243E; }
+.s-hm  { background:#EEEDFE; color:#3C3489; }
+.s-mp  { background:#E1F5EE; color:#085041; }
+.s-ex  { background:#F1EFE8; color:#555550; }
+.tabs { display: flex; border-bottom: 1px solid #e0e0e0; margin-bottom: 1rem; }
+.tab { padding: 7px 16px; font-size: 13px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+.tab.active { color: #111; border-bottom-color: #111; font-weight: 500; }
+/* TABLE */
+#table-view { display: block; }
+#timeline-view { display: none; }
+.controls { display: flex; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
+.controls input, .controls select { font-family: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; color: #111; }
+.controls input { flex: 1; min-width: 140px; }
+.controls select { min-width: 160px; }
+.tbl-wrap { overflow-x: auto; border: 1px solid #e8e8e8; border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { padding: 8px 10px; text-align: left; font-weight: 500; font-size: 11px; color: #888; background: #f7f7f5; cursor: pointer; user-select: none; border-bottom: 1px solid #e8e8e8; white-space: nowrap; }
+th:hover { color: #111; }
+th .si { margin-left: 3px; opacity:.4; font-size:10px; }
+th.active .si { opacity:1; }
+td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; color: #111; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafafa; }
+.docs { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.bar-cell { padding: 6px 10px; min-width: 110px; }
+.bar-bg { background: #f0f0f0; border-radius: 3px; height: 7px; position: relative; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; background: #185FA5; position: absolute; left: 0; top: 0; }
+.year-label { font-size: 10px; color: #999; margin-top: 2px; }
+.sources-cell { white-space: nowrap; }
+.parl-link { font-size: 12px; color: #185FA5; text-decoration: none; }
+.parl-link:hover { text-decoration: underline; }
+.note { font-size: 11px; color: #888; max-width: 140px; white-space: normal; line-height: 1.4; }
+.footer { font-size: 12px; color: #999; margin-top: .75rem; }
+.no-results { text-align: center; padding: 2rem; color: #999; font-size: 14px; }
+/* TIMELINE */
+.tl-container { width: 100%; overflow-x: auto; }
+.tl-row-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; min-width: 500px; }
+.tl-label { font-size: 11px; color: #111; width: 150px; flex-shrink: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .15s; }
+.tl-track { flex: 1; background: #f0f0f0; border-radius: 3px; height: 11px; position: relative; cursor: pointer; }
+.tl-bar { height: 100%; border-radius: 3px; background: #185FA5; position: absolute; top: 0; transition: opacity .15s; }
+.tl-axis-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-width: 500px; }
+.tl-axis-spacer { width: 150px; flex-shrink: 0; }
+.tl-axis-track { flex: 1; position: relative; height: 16px; }
+.tl-axis-label { position: absolute; font-size: 10px; color: #999; transform: translateX(-50%); }
+/* tooltip */
+#tl-tooltip {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 9999;
+  display: none;
+  max-width: 260px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+}
+#tl-tooltip .tt-name { font-weight: 500; font-size: 13px; color: #111; margin-bottom: 6px; }
+#tl-tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; color: #888; margin-bottom: 3px; }
+#tl-tooltip .tt-val { color: #111; font-weight: 500; }
+#tl-tooltip .tt-sources { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.dimmed .tl-label { opacity: .15; }
+.dimmed .tl-bar { opacity: .1; }
+</style>
+</head>
+<body>
+
+<h2 class="title">Data Overview</h2>
+<p class="subtitle">Our thanks and credit go to everyone who has compiled these datasets. This serves as an overview of the existing data, and we have taken great care to ensure that all sources are cited correctly and in full. If you notice any errors or if any information is missing, please contact <a href="mailto:luck@soz.uni-frankfurt.de" style="color:#888">luck@soz.uni-frankfurt.de</a>.</p>
+
+<div class="summary-row" id="summaryRow"></div>
+
+<div class="legend">
+  <span class="legend-label">Sources:</span>
+  <a href="https://www.clarin.eu/parlamint" class="src-badge s-pm" target="_blank">ParlaMint</a>
+  <a href="https://dataverse.harvard.edu/citation?persistentId=doi:10.7910/DVN/L4OAKN" class="src-badge s-ps" target="_blank">ParlSpeech V2</a>
+  <a href="https://parllawspeech.org/data/" class="src-badge s-pl" target="_blank">ParlLawSpeech</a>
+  <a href="https://pureportal.strath.ac.uk/en/datasets/parlee-plenary-speeches-v2-data-set-annotated-full-text-of-151-mi/" class="src-badge s-pe" target="_blank">ParlEE</a>
+  <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/HISX4G" class="src-badge s-hm" target="_blank">HOME</a>
+  <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/9MN0RL" class="src-badge s-mp" target="_blank">MAPLE</a>
+  <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/KUARWD" class="src-badge s-ex" target="_blank">ItaParlCorpus</a>
+  <a href="https://github.com/DominikBeese/DeuParl-v2" class="src-badge s-ex" target="_blank">DeuParl</a>
+  <a href="https://github.com/PolMine/GermaParlTEI" class="src-badge s-ex" target="_blank">GermaParl</a>
+  <a href="https://louwerse.github.io/dutchparl/" class="src-badge s-ex" target="_blank">DutchParl</a>
+  <a href="https://zenodo.org/records/3831472" class="src-badge s-ex" target="_blank">UNGA</a>
+  <a href="https://polmine.github.io/MigParl/" class="src-badge s-ex" target="_blank">MigParl</a>
+  <a href="https://zenodo.org/records/3819374" class="src-badge s-ex" target="_blank">ParisParl</a>
+  <a href="https://springernature.figshare.com/articles/dataset/Finnish_parliamentary_speeches_dataset/28028732" class="src-badge s-ex" target="_blank">Finnish Speeches</a>
+  <a href="https://data.stanford.edu/congress_text" class="src-badge s-ex" target="_blank">Stanford Congress</a>
+  <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/6MZN76" class="src-badge s-ex" target="_blank">Irish DB</a>
+  <a href="https://clip.ipipan.waw.pl/PPC" class="src-badge s-ex" target="_blank">Polish Parl. Corpus</a>
+  <a href="https://dati.saeima.korpuss.lv/" class="src-badge s-ex" target="_blank">LinkedSaeima</a>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('table')">Table</button>
+  <button class="tab" onclick="switchTab('timeline')">Timeline</button>
+</div>
+
+<div id="table-view">
+  <div class="controls">
+    <input type="text" id="searchBox" placeholder="Search country or parliament…" oninput="renderTable()" />
+    <select id="sortCol" onchange="renderTable()">
+      <option value="country">Sort: country A–Z</option>
+      <option value="docs_desc">Sort: most speeches</option>
+      <option value="docs_asc">Sort: fewest speeches</option>
+      <option value="start_asc">Sort: earliest start</option>
+      <option value="end_desc">Sort: most recent end</option>
+    </select>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="setSort('country')" id="th-country">Country <span class="si">↕</span></th>
+          <th>Parliament</th>
+          <th onclick="setSort('docs_desc')" id="th-docs" style="text-align:right">Speeches <span class="si">↕</span></th>
+          <th onclick="setSort('start_asc')" id="th-start">Start <span class="si">↕</span></th>
+          <th onclick="setSort('end_desc')" id="th-end">End <span class="si">↕</span></th>
+          <th style="min-width:110px">Coverage</th>
+          <th style="min-width:200px">Sources</th>
+          <th style="min-width:130px">Metadata</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div class="footer" id="footerLine"></div>
+</div>
+
+<div id="timeline-view">
+  <div class="tl-container" id="tlContainer"></div>
+</div>
+
+<div id="tl-tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-row"><span>Period</span><span class="tt-val" id="tt-period"></span></div>
+  <div class="tt-row"><span>Speeches</span><span class="tt-val" id="tt-docs"></span></div>
+  <div class="tt-sources" id="tt-sources"></div>
+</div>
+
+<script>
+var URLS = {
+  pm:"https://www.clarin.eu/parlamint",
+  ps:"https://dataverse.harvard.edu/citation?persistentId=doi:10.7910/DVN/L4OAKN",
+  pl:"https://parllawspeech.org/data/",
+  pe:"https://pureportal.strath.ac.uk/en/datasets/parlee-plenary-speeches-v2-data-set-annotated-full-text-of-151-mi/",
+  hm:"https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/HISX4G",
+  mp:"https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/9MN0RL",
+  ita:"https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/KUARWD",
+  deu:"https://github.com/DominikBeese/DeuParl-v2",
+  ger:"https://github.com/PolMine/GermaParlTEI",
+  dut:"https://louwerse.github.io/dutchparl/",
+  unga:"https://zenodo.org/records/3831472",
+  mig:"https://polmine.github.io/MigParl/",
+  par:"https://zenodo.org/records/3819374",
+  fin:"https://springernature.figshare.com/articles/dataset/Finnish_parliamentary_speeches_dataset/28028732",
+  std:"https://data.stanford.edu/congress_text",
+  irl:"https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/6MZN76",
+  ppc:"https://clip.ipipan.waw.pl/PPC",
+  lnk:"https://dati.saeima.korpuss.lv/"
+};
+var LABELS = {
+  pm:"ParlaMint",ps:"ParlSpeech V2",pl:"ParlLawSpeech",pe:"ParlEE",hm:"HOME",mp:"MAPLE",
+  ita:"ItaParlCorpus",deu:"DeuParl",ger:"GermaParl",dut:"DutchParl",unga:"UNGA",
+  mig:"MigParl",par:"ParisParl",fin:"Finnish Speeches",std:"Stanford Congress",
+  irl:"Irish DB",ppc:"Polish Parl. Corpus",lnk:"LinkedSaeima"
+};
+var CSS = {
+  pm:"s-pm",ps:"s-ps",pl:"s-pl",pe:"s-pe",hm:"s-hm",mp:"s-mp",
+  ita:"s-ex",deu:"s-ex",ger:"s-ex",dut:"s-ex",unga:"s-ex",
+  mig:"s-ex",par:"s-ex",fin:"s-ex",std:"s-ex",irl:"s-ex",ppc:"s-ex",lnk:"s-ex"
+};
+
+function badge(key) {
+  return '<a href="'+URLS[key]+'" class="src-badge '+CSS[key]+'" target="_blank" rel="noopener">'+LABELS[key]+'</a>';
+}
+
+// [country, docs, start, end, sources[], note, parliament_name, parliament_url]
+var RAW = [
+  ["Austria",2022212,1996,2022,["pm","ps","pl","pe"],"tbd","Nationalrat","https://www.parlament.gv.at"],
+  ["Belgium",670412,2009,2022,["pm","pe","mp"],"tbd","Chambre/Kamer","https://www.lachambre.be"],
+  ["Bosnia and Herzegovina",126252,1998,2022,["pm"],"tbd","Parlamentarna skupština","https://www.parlament.ba"],
+  ["Bulgaria",210018,2014,2022,["pm"],"tbd","Narodno Sabranie","https://www.parliament.bg"],
+  ["Croatia",734415,2003,2022,["pm","pl"],"tbd","Hrvatski Sabor","https://www.sabor.hr"],
+  ["Czech Republic",689692,1993,2023,["pm","ps","pl"],"tbd","Parlament České republiky","https://www.psp.cz"],
+  ["Denmark",1771779,1997,2021,["pm","ps","pl"],"tbd","Folketing","https://www.ft.dk"],
+  ["Estonia",227872,2011,2022,["pm"],"tbd","Riigikogu","https://www.riigikogu.ee"],
+  ["European Union",574119,1999,2024,["pl"],"tbd","European Parliament","https://www.europarl.europa.eu"],
+  ["Finland",146858,1907,2022,["pm","fin"],"tbd","Eduskunta","https://www.eduskunta.fi"],
+  ["France",5387336,1996,2022,["pm","pe","par"],"tbd","Assemblée Nationale","https://www.assemblee-nationale.fr"],
+  ["Germany",3271713,1867,2022,["ps","pl","pe","deu","ger","mig"],"tbd","Bundestag / Bundesrat","https://www.bundestag.de"],
+  ["Germany (Landtage)",null,2000,2018,["mig"],"tbd","Landtage (regional)","https://polmine.github.io/MigParl/"],
+  ["Ghana",352280,2005,2024,["hm"],"tbd","Parliament of Ghana","https://parliament.gh"],
+  ["Great Britain",9177947,1988,2022,["pm","ps","pe"],"tbd","House of Commons","https://www.parliament.uk"],
+  ["Greece",1623192,1989,2022,["pm","mp"],"tbd","Voulí ton Ellínon","https://www.hellenicparliament.gr"],
+  ["Hungary",2278295,1994,2022,["pm","pl","pe"],"tbd","Országgyűlés","https://www.parlament.hu"],
+  ["Iceland",95286,2015,2022,["pm"],"tbd","Alþingi","https://www.althingi.is"],
+  ["Ireland",21517564,1919,2019,["pe","mp","irl"],"tbd","Dáil Éireann","https://www.oireachtas.ie"],
+  ["Italy",2627514,1948,2022,["pm","ita"],"tbd","Camera dei deputati / Senato","https://www.camera.it"],
+  ["Latvia",660012,1993,2022,["pm","lnk"],"tbd","Saeima","https://www.saeima.lv"],
+  ["Netherlands",1752614,1994,2022,["pm","ps","dut"],"tbd","Tweede Kamer","https://www.tweedekamer.nl"],
+  ["New Zealand",925766,1987,2019,["ps"],"tbd","House of Representatives","https://www.parliament.nz"],
+  ["Norway",398809,1998,2022,["pm"],"tbd","Stortinget","https://www.stortinget.no"],
+  ["Poland",14874946,1919,2025,["pm","ppc"],"tbd","Sejm","https://www.sejm.gov.pl"],
+  ["Portugal",1472804,2009,2022,["pm","pe","mp"],"tbd","Assembleia da República","https://www.parlamento.pt"],
+  ["Serbia",316069,1997,2022,["pm"],"tbd","Narodna skupština","https://www.parlament.rs"],
+  ["Slovenia",311354,2000,2022,["pm"],"tbd","Državni Zbor","https://www.dz-rs.si"],
+  ["South Africa",309716,1999,2024,["hm"],"tbd","National Assembly","https://www.parliament.gov.za"],
+  ["Spain",638060,1996,2023,["pm","ps","pl"],"tbd","Congreso de los Diputados","https://www.congreso.es"],
+  ["Spain (Basque)",39148,2015,2022,["pm"],"tbd","Eusko Legebiltzarra","https://www.legebiltzarra.eus"],
+  ["Spain (Catalonia)",50824,2015,2022,["pm"],"tbd","Parlament de Catalunya","https://www.parlament.cat"],
+  ["Spain (Galicia)",83078,2015,2022,["pm"],"tbd","Parlamento de Galicia","https://www.parlamentodegalicia.es"],
+  ["Sweden",450222,1990,2022,["pm","ps"],"tbd","Riksdag","https://www.riksdagen.se"],
+  ["Turkey",681052,2011,2022,["pm"],"tbd","Türkiye Büyük Millet Meclisi","https://www.tbmm.gov.tr"],
+  ["Ukraine",429437,2002,2023,["pm"],"tbd","Verkhovna Rada","https://www.rada.gov.ua"],
+  ["United Nations (UNGA)",null,1994,2018,["unga"],"tbd","UN General Assembly","https://zenodo.org/records/3831472"],
+  ["United States",14153443,1873,2017,["std"],"tbd","US Congress","https://data.stanford.edu/congress_text"]
+];
+
+var MIN_YEAR = 1867, MAX_YEAR = 2025;
+var sortKey = 'country';
+
+function setSort(k) {
+  sortKey = k;
+  document.querySelectorAll('th').forEach(function(t){ t.classList.remove('active'); });
+  var map = {country:'th-country',docs_desc:'th-docs',docs_asc:'th-docs',start_asc:'th-start',end_desc:'th-end'};
+  if (map[k]) { var el = document.getElementById(map[k]); if(el) el.classList.add('active'); }
+  renderTable();
+}
+
+function fmt(n) { return (n == null) ? 'N/A' : n.toLocaleString('en-GB'); }
+
+function switchTab(t) {
+  var isTable = (t === 'table');
+  document.getElementById('table-view').style.display = isTable ? 'block' : 'none';
+  document.getElementById('timeline-view').style.display = isTable ? 'none' : 'block';
+  document.querySelectorAll('.tab').forEach(function(el, i){
+    el.classList.toggle('active', (i===0 && isTable) || (i===1 && !isTable));
+  });
+  if (!isTable) renderTimeline();
+}
+
+function renderTable() {
+  var q = document.getElementById('searchBox').value.toLowerCase();
+  var key = document.getElementById('sortCol').value || sortKey;
+  var rows = RAW.filter(function(r){ return r[0].toLowerCase().indexOf(q) > -1 || r[6].toLowerCase().indexOf(q) > -1; });
+  rows.sort(function(a,b){
+    if (key==='country')   return a[0].localeCompare(b[0]);
+    if (key==='docs_desc') return (b[1]||0)-(a[1]||0);
+    if (key==='docs_asc')  return (a[1]||0)-(b[1]||0);
+    if (key==='start_asc') return a[2]-b[2];
+    if (key==='end_desc')  return b[3]-a[3];
+    return 0;
+  });
+
+  var tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="no-results">No countries match your search.</td></tr>';
+  } else {
+    var span = MAX_YEAR - MIN_YEAR;
+    tbody.innerHTML = rows.map(function(r){
+      var country=r[0],docs=r[1],start=r[2],end=r[3],sources=r[4],note=r[5],parl=r[6],parlUrl=r[7];
+      var lp = Math.round(((start - MIN_YEAR) / span) * 100);
+      var wp = Math.max(1, Math.round(((end - start) / span) * 100));
+      var badges = sources.map(badge).join('');
+      return '<tr>'
+        +'<td>'+country+'</td>'
+        +'<td><a href="'+parlUrl+'" class="parl-link" target="_blank" rel="noopener">'+parl+'</a></td>'
+        +'<td class="docs">'+fmt(docs)+'</td>'
+        +'<td>'+start+'</td>'
+        +'<td>'+end+'</td>'
+        +'<td class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="left:'+lp+'%;width:'+wp+'%"></div></div><div class="year-label">'+start+'–'+end+'</div></td>'
+        +'<td class="sources-cell">'+badges+'</td>'
+        +'<td class="note">'+note+'</td>'
+        +'</tr>';
+    }).join('');
+  }
+
+  var totalDocs = rows.reduce(function(s,r){ return s+(r[1]||0); }, 0);
+  var minStart = Math.min.apply(null, rows.map(function(r){ return r[2]; }));
+  var maxEnd   = Math.max.apply(null, rows.map(function(r){ return r[3]; }));
+  var avgSpan  = rows.length ? Math.round(rows.reduce(function(s,r){ return s+(r[3]-r[2]); },0)/rows.length) : 0;
+  document.getElementById('summaryRow').innerHTML =
+    '<div class="metric"><div class="metric-label">Parliamentary data available for</div><div class="metric-value">'+rows.length+' countries</div></div>'
+   +'<div class="metric"><div class="metric-label">Speeches</div><div class="metric-value">'+fmt(totalDocs)+'</div></div>'
+   +'<div class="metric"><div class="metric-label">Avg. coverage span</div><div class="metric-value">'+avgSpan+' yrs</div></div>'
+   +'<div class="metric"><div class="metric-label">Total time span (all data)</div><div class="metric-value">'+minStart+'–'+maxEnd+'</div></div>';
+  document.getElementById('footerLine').textContent = 'Showing '+rows.length+' of '+RAW.length+' countries · '+fmt(totalDocs)+' speeches';
+}
+
+function renderTimeline() {
+  var container = document.getElementById('tlContainer');
+  var span = MAX_YEAR - MIN_YEAR;
+  var axisYears = [1870,1880,1890,1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020,2025];
+
+  var html = '<div class="tl-axis-row"><div class="tl-axis-spacer"></div><div class="tl-axis-track">';
+  axisYears.forEach(function(y){
+    var pct = ((y - MIN_YEAR) / span * 100).toFixed(2);
+    html += '<span class="tl-axis-label" style="left:'+pct+'%">'+y+'</span>';
+  });
+  html += '</div></div>';
+
+  RAW.forEach(function(r, i){
+    var start=r[2], end=r[3];
+    var lp = ((start - MIN_YEAR) / span * 100).toFixed(2);
+    var wp = Math.max(0.5, ((end - start) / span * 100)).toFixed(2);
+    html += '<div class="tl-row-wrap" id="tlrow-'+i+'">'
+      +'<div class="tl-label">'+r[0]+'</div>'
+      +'<div class="tl-track" onmouseenter="tlHover('+i+',event)" onmouseleave="tlUnhover()">'
+      +'<div class="tl-bar" style="left:'+lp+'%;width:'+wp+'%"></div>'
+      +'</div>'
+      +'</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function tlHover(idx, e) {
+  for (var i=0; i<RAW.length; i++) {
+    var el = document.getElementById('tlrow-'+i);
+    if (el) {
+      if (i !== idx) el.classList.add('dimmed');
+      else el.classList.remove('dimmed');
+    }
+  }
+  var r = RAW[idx];
+  document.getElementById('tt-name').textContent = r[0];
+  document.getElementById('tt-period').textContent = r[2]+'–'+r[3];
+  document.getElementById('tt-docs').textContent = fmt(r[1]);
+  document.getElementById('tt-sources').innerHTML = r[4].map(badge).join('');
+  var tt = document.getElementById('tl-tooltip');
+  tt.style.display = 'block';
+  posTooltip(e);
+}
+
+function posTooltip(e) {
+  var tt = document.getElementById('tl-tooltip');
+  tt.style.left = (e.clientX + 14) + 'px';
+  tt.style.top  = (e.clientY - 10) + 'px';
+}
+
+function tlUnhover() {
+  for (var i=0; i<RAW.length; i++) {
+    var el = document.getElementById('tlrow-'+i);
+    if (el) el.classList.remove('dimmed');
+  }
+  document.getElementById('tl-tooltip').style.display = 'none';
+}
+
+document.addEventListener('mousemove', function(e){
+  var tt = document.getElementById('tl-tooltip');
+  if (tt.style.display === 'block') posTooltip(e);
+});
+
+renderTable();
+</script>
+</body>
+</html>
